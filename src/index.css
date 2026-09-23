@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens as RGB triplets so Tailwind opacity modifiers work.
+   Chart series colors were validated for color-vision deficiency (all pairs). */
+:root {
+  --ground: 241 244 247;
+  --surface: 255 255 255;
+  --sunken: 246 248 250;
+  --ink: 19 33 46;
+  --ink2: 62 76 89;
+  --muted: 102 115 128;
+  --line: 218 225 232;
+  --accent: 31 78 121;
+  --good: 30 123 74;
+  --bad: 179 38 30;
+  --drug: 168 50 47;
+  --med: 47 109 181;
+  --total: 66 163 107;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ground: 13 20 27;
+    --surface: 21 31 41;
+    --sunken: 17 26 35;
+    --ink: 232 238 243;
+    --ink2: 186 198 209;
+    --muted: 140 154 167;
+    --line: 42 56 69;
+    --accent: 127 176 224;
+    --good: 76 195 138;
+    --bad: 240 113 103;
+    --drug: 194 61 58;
+    --med: 91 149 227;
+    --total: 64 168 112;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ground: 13 20 27;
+  --surface: 21 31 41;
+  --sunken: 17 26 35;
+  --ink: 232 238 243;
+  --ink2: 186 198 209;
+  --muted: 140 154 167;
+  --line: 42 56 69;
+  --accent: 127 176 224;
+  --good: 76 195 138;
+  --bad: 240 113 103;
+  --drug: 194 61 58;
+  --med: 91 149 227;
+  --total: 64 168 112;
+}
+
+body {
+  background: rgb(var(--ground));
+  color: rgb(var(--ink));
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+input[type='range'] {
+  accent-color: rgb(var(--accent));
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
