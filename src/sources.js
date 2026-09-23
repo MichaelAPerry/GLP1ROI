@@ -65,3 +65,38 @@ export const SOURCES = [
     url: 'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7790262/',
   },
 ];
+
+// Provisions of the LVTEA–Lenape Technical School agreement (July 1, 2022 – June 30, 2027)
+// that change the model. Page numbers are the contract's printed page numbers.
+export const CONTRACT_POINTS = [
+  {
+    title: 'The district pays almost the whole premium',
+    ref: 'App. B §1, p. 23',
+    body: 'Employees contribute only $100–$300 a year toward the Highmark EPO. Nearly every dollar of GLP-1 cost, and every dollar of savings, lands on the district.',
+  },
+  {
+    title: 'Members already share the drug cost',
+    ref: 'App. D.1, p. 36',
+    body: 'Brand formulary drugs carry a $35 copay per 30-day supply ($50 non-formulary), about $420 a year that the plan does not pay.',
+  },
+  {
+    title: 'Retiree health extends the payback window',
+    ref: 'App. B §9, pp. 25–28',
+    body: 'Early retirees (20+ years PSERS, 10 at Lenape) keep district-paid coverage for up to 10 years or until Medicare. Savings from weight loss keep accruing in those years; this incentive expires June 30, 2027 unless renewed.',
+  },
+  {
+    title: 'Avoided sick days are partly paid back later',
+    ref: 'Art. IX §1, p. 9; App. B §11, p. 28',
+    body: '10 sick days a year accumulate without limit and are bought out at $135/day at retirement for 20+ year staff, so a sick day saved is not a full substitute-rate saving.',
+  },
+  {
+    title: 'The contract is up for renewal',
+    ref: 'Art. XVI, p. 16',
+    body: 'The agreement runs to June 30, 2027. GLP-1 coverage criteria, the retiree incentive and plan design can all be settled in the successor contract.',
+  },
+  {
+    title: 'A small group',
+    ref: 'NCES',
+    body: 'About 71 staff and 33 classroom teachers. A handful of members on therapy means the dollars are modest, and one avoided joint replacement ($40–60K) moves the result noticeably.',
+  },
+];

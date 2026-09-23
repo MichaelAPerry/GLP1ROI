@@ -115,12 +115,18 @@ export function defaultInputs(obesityClass = 'II', scenario = 'base') {
   return {
     obesityClass,
     scenario,
-    members: 100,
-    coveredLives: 3000,
+    // Sized for Lenape Technical School: ~71 staff (NCES), roughly 160 covered lives
+    // with dependents, and a handful of members on therapy.
+    members: 5,
+    coveredLives: 160,
     tenure: 10,
+    retireeYears: 0,
     drugCost: 6800,
+    copayMonthly: 35,
     monitoringCost: 300,
-    subRate: 150,
+    subRate: 120,
+    sickDayPayout: 135,
+    payoutEligible: 50,
     sickDays: c.sickDays,
     excessCost: c.excessCost,
     eventProb: c.eventProb * 100,
@@ -136,6 +142,9 @@ function stripLabel({ label, ...rest }) {
 }
 
 // Projects one cohort of members who start therapy in year 1.
+// The horizon is active tenure plus any years the member stays on the district plan
+// as a retiree (LVTEA Early Retirement Incentive: up to 10 years or until Medicare).
+// Substitute savings stop at retirement; drug cost and medical offsets continue.
 // Returns one row per year with annual and cumulative figures (totals for `members`).
 //
 // Persistence: E(t) = share still on therapy at the end of year t.
@@ -157,7 +166,9 @@ export function projectCohort(inp) {
   let npv = 0;
   let npvPlan = 0;
 
-  for (let t = 1; t <= inp.tenure; t++) {
+  const horizon = inp.tenure + (inp.retireeYears || 0);
+  for (let t = 1; t <= horizon; t++) {
+    const active = t <= inp.tenure;
     const onEnd = t === 1 ? pct(inp.persistY1) : prevOn * pct(inp.persistAnnual);
     const avgOn = (prevOn + onEnd) / 2;
     const ramp = rampFor(t);
@@ -170,12 +181,17 @@ export function projectCohort(inp) {
     const routineExcess = Math.max(0, inp.excessCost * medF - eventExpected);
 
     const drugPrice = inp.drugCost * drugF;
-    const drug = N * avgOn * (drugPrice + inp.monitoringCost * medF);
+    // Plan pays the net price less the member's brand copay.
+    const planDrugPrice = Math.max(0, drugPrice - inp.copayMonthly * 12);
+    const drug = N * avgOn * (planDrugPrice + inp.monitoringCost * medF);
     const benefitShare = N * onEnd * ramp;
     const avertedRoutine = benefitShare * routineExcess * avertedShare;
     const avertedEvents = benefitShare * eventExpected * pct(inp.eventReduction);
     const medical = avertedRoutine + avertedEvents;
-    const subs = benefitShare * inp.sickDays * inp.subRate * wageF;
+    // A sick day not taken is banked; members who retire eligible are paid for it
+    // ($135/day into a 403(b) under the LVTEA contract), which offsets the sub savings.
+    const payoutOffset = inp.sickDayPayout * pct(inp.payoutEligible);
+    const subs = active ? benefitShare * inp.sickDays * (inp.subRate * wageF - payoutOffset) : 0;
 
     cumDrug += drug;
     cumMedical += medical;
@@ -186,9 +202,11 @@ export function projectCohort(inp) {
 
     rows.push({
       year: t,
+      active,
       onTherapy: onEnd,
       avgOnTherapy: avgOn,
       drugUnits: N * avgOn * drugF, // drug spend per $1 of year-1 net price
+      copayUnits: N * avgOn * inp.copayMonthly * 12,
       monitoring: N * avgOn * inp.monitoringCost * medF,
       drug,
       medical,
@@ -216,13 +234,15 @@ function summarize(rows, inp, npv, npvPlan) {
   const breakEvenMedical = rows.find((r) => r.cumMedical >= r.cumDrug)?.year ?? null;
   const drugUnits = rows.reduce((s, r) => s + r.drugUnits, 0);
   const monitoring = rows.reduce((s, r) => s + r.monitoring, 0);
+  const copays = rows.reduce((s, r) => s + r.copayUnits, 0);
 
   // Year-1 net annual drug price at which coverage exactly breaks even over the tenure.
   const priceToBreakEven = (savings) =>
-    drugUnits > 0 ? Math.max(0, (savings - monitoring) / drugUnits) : 0;
+    drugUnits > 0 ? Math.max(0, (savings - monitoring + copays) / drugUnits) : 0;
 
-  // Cumulative probability that an untreated member has a major event during tenure.
-  const eventRiskOverTenure = 1 - (1 - inp.eventProb / 100) ** inp.tenure;
+  // Cumulative probability that an untreated member has a major event over the horizon.
+  const eventRiskOverTenure = 1 - (1 - inp.eventProb / 100) ** rows.length;
+  const months = 12 * rows.length;
 
   return {
     rows,
@@ -238,9 +258,8 @@ function summarize(rows, inp, npv, npvPlan) {
       roi: last.cumDrug > 0 ? last.cumTotal / last.cumDrug : 0,
       roiPlan: last.cumDrug > 0 ? last.cumMedical / last.cumDrug : 0,
       // Net cost spread across every covered life on the plan, per member per month.
-      netCostPmpm: inp.coveredLives > 0 ? -last.cumNet / (inp.coveredLives * 12 * inp.tenure) : 0,
-      netCostPmpmPlan:
-        inp.coveredLives > 0 ? -last.cumNetPlan / (inp.coveredLives * 12 * inp.tenure) : 0,
+      netCostPmpm: inp.coveredLives > 0 ? -last.cumNet / (inp.coveredLives * months) : 0,
+      netCostPmpmPlan: inp.coveredLives > 0 ? -last.cumNetPlan / (inp.coveredLives * months) : 0,
     },
     breakEvenTotal,
     breakEvenMedical,

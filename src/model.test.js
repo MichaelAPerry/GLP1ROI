@@ -18,8 +18,8 @@ test('averted share grows with weight loss and realization', () => {
 test('full persistence, one year: hand-checked arithmetic', () => {
   const inp = { ...defaultInputs('II'), members: 1, tenure: 1, persistY1: 100 };
   const r = projectCohort(inp).rows[0];
-  close(r.drug, inp.drugCost + inp.monitoringCost);
-  close(r.subs, 0.15 * inp.sickDays * inp.subRate);
+  close(r.drug, inp.drugCost - inp.copayMonthly * 12 + inp.monitoringCost);
+  close(r.subs, 0.15 * inp.sickDays * (inp.subRate - inp.sickDayPayout * 0.5));
 });
 
 test('events are carved out of excess cost, not double counted', () => {
@@ -38,4 +38,11 @@ test('break-even price zeroes the net impact', () => {
 test('savings rank with severity', () => {
   const [I, II, III] = compareClasses(defaultInputs('II'));
   assert.ok(I.totals.net < II.totals.net && II.totals.net < III.totals.net);
+});
+
+test('retiree years extend drug and medical lines but not substitute savings', () => {
+  const inp = { ...defaultInputs('III'), tenure: 5, retireeYears: 5 };
+  const res = projectCohort(inp);
+  assert.equal(res.rows.length, 10);
+  assert.ok(res.rows.slice(5).every((r) => r.subs === 0 && r.medical > 0 && r.drug > 0));
 });

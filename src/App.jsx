@@ -3,6 +3,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -16,7 +17,7 @@ import {
   defaultInputs,
   projectCohort,
 } from './model.js';
-import { SOURCES } from './sources.js';
+import { CONTRACT_POINTS, SOURCES } from './sources.js';
 
 // ---------- formatting ----------
 
@@ -35,6 +36,8 @@ function money(v, { compact = true, signed = false } = {}) {
   else body = `$${(a / 1e6).toFixed(2)}M`;
   return sign + body;
 }
+
+const usd2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
 const pct = (v, digits = 0) => `${(v * 100).toFixed(digits)}%`;
 
@@ -195,7 +198,10 @@ function ChartTooltip({ active, payload, label, colors }) {
   const row = payload[0].payload;
   return (
     <div className="rounded-md border border-line bg-surface px-3 py-2.5 text-xs shadow-lg">
-      <div className="mb-1.5 font-semibold text-ink">Year {label}</div>
+      <div className="mb-1.5 font-semibold text-ink">
+        Year {label}
+        {row.active === false && <span className="font-normal text-muted"> · retiree</span>}
+      </div>
       <table className="num">
         <tbody>
           {SERIES.map((s) => (
@@ -244,7 +250,7 @@ function EndLabel({ x, y, index, count, value, color }) {
   );
 }
 
-function RoiChart({ rows, breakEvenTotal, breakEvenMedical, colors }) {
+function RoiChart({ rows, tenure, breakEvenTotal, breakEvenMedical, colors }) {
   const n = rows.length;
   const data = [{ year: 0, cumDrug: 0, cumMedical: 0, cumTotal: 0, cumNet: 0, onTherapy: 1 }, ...rows];
   return (
@@ -267,6 +273,15 @@ function RoiChart({ rows, breakEvenTotal, breakEvenMedical, colors }) {
           axisLine={false}
           width={64}
         />
+        {n > tenure && (
+          <ReferenceArea
+            x1={tenure}
+            x2={n}
+            fill={colors.muted}
+            fillOpacity={0.08}
+            label={{ value: 'Retiree coverage', position: 'insideTopRight', fill: colors.muted, fontSize: 11 }}
+          />
+        )}
         <Tooltip
           content={<ChartTooltip colors={colors} />}
           cursor={{ stroke: colors.muted, strokeWidth: 1 }}
@@ -340,7 +355,10 @@ function YearTable({ rows }) {
         <tbody className="text-ink">
           {rows.map((r) => (
             <tr key={r.year} className="border-b border-line/60">
-              <td className="py-1.5 pr-3 text-left">{r.year}</td>
+              <td className="py-1.5 pr-3 text-left">
+                {r.year}
+                {!r.active && <span className="text-muted"> · retiree</span>}
+              </td>
               <td className="py-1.5 pr-3">{pct(r.onTherapy)}</td>
               <td className="py-1.5 pr-3">{money(r.drug)}</td>
               <td className="py-1.5 pr-3">{money(r.medical)}</td>
@@ -395,16 +413,22 @@ function ClassComparison({ inputs, scale }) {
   );
 }
 
+const horizonText = (inp) =>
+  inp.retireeYears > 0
+    ? `${inp.tenure} working years plus ${inp.retireeYears} years of retiree coverage`
+    : `${inp.tenure} years`;
+
 function buildSummary(inp, res) {
   const c = OBESITY_CLASSES[inp.obesityClass];
   const t = res.totals;
-  const pmpm = usd0.format(Math.abs(t.netCostPmpm)).replace(/\.00$/, '');
+  const horizon = res.rows.length;
+  const pmpm = usd2.format(Math.abs(t.netCostPmpm));
   const verdict =
     t.net >= 0
       ? `coverage pays for itself, saving ${money(t.net)} net (break-even in year ${res.breakEvenTotal})`
       : `coverage costs ${money(-t.net)} more than it saves — about ${pmpm} per member per month spread across all ${inp.coveredLives.toLocaleString()} covered lives`;
   return (
-    `Covering GLP-1 treatment for ${inp.members} members with ${c.short} obesity over ${inp.tenure} years ` +
+    `Covering GLP-1 treatment for ${inp.members} members with ${c.short} obesity over ${horizonText(inp)} ` +
     `costs ${money(t.drug)} in drugs and monitoring. It averts ${money(t.medical)} in excess medical costs ` +
     `and ${money(t.subs)} in substitute-teacher costs, so ${verdict}. ` +
     `At these assumptions, coverage breaks even when the plan's net drug price is at or below ` +
@@ -442,6 +466,7 @@ export default function App() {
   const scale = view === 'plan' ? 1 : Math.max(1, inputs.members);
   const perView = (v) => v / scale;
   const t = res.totals;
+  const horizon = res.rows.length;
 
   const scaledRows = useMemo(
     () =>
@@ -494,7 +519,7 @@ export default function App() {
       <header className="flex flex-wrap items-end justify-between gap-6">
         <div className="max-w-2xl">
           <div className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-accent">
-            District health plan · Anti-obesity medication coverage
+            Lenape Technical School · LVTEA · Anti-obesity medication coverage
           </div>
           <h1 className="mt-2 font-serif text-[30px] font-semibold leading-tight text-ink sm:text-[38px]">
             The long-term cost of keeping — or cutting — GLP-1 coverage
@@ -533,12 +558,12 @@ export default function App() {
         <Kpi
           label="Total drug cost"
           value={money(perView(t.drug))}
-          sub={`GLP-1 + monitoring, ${inputs.tenure} yrs, ${unit}`}
+          sub={`Plan share after $${inputs.copayMonthly}/mo copay, plus monitoring · ${horizon} yrs, ${unit}`}
         />
         <Kpi
           label="Averted medical cost"
           value={money(perView(t.medical))}
-          sub={`${pct(res.avertedShare)} of excess cost avoided while on therapy · ${res.eventsAverted.toFixed(1)} major events avoided`}
+          sub={`${pct(res.avertedShare)} of excess cost avoided while on therapy · ${res.eventsAverted.toFixed(2)} major events avoided`}
         />
         <Kpi
           label="Substitute teacher savings"
@@ -565,7 +590,7 @@ export default function App() {
         <Stat
           label="Break-even year"
           value={res.breakEvenTotal ? `Year ${res.breakEvenTotal}` : 'Not reached'}
-          sub={res.breakEvenMedical ? `Plan only: year ${res.breakEvenMedical}` : `within ${inputs.tenure}-yr tenure`}
+          sub={res.breakEvenMedical ? `Plan only: year ${res.breakEvenMedical}` : `within ${horizon} years`}
         />
         <Stat label="Return per $1 of drug spend" value={`$${t.roi.toFixed(2)}`} sub={`Plan only: $${t.roiPlan.toFixed(2)}`} />
         <Stat
@@ -575,7 +600,7 @@ export default function App() {
         />
         <Stat
           label={netGood ? 'Net savings per covered life' : 'Net cost per covered life'}
-          value={`${usd0.format(Math.abs(t.netCostPmpm)).replace(/\.00$/, '')} PMPM`}
+          value={`${usd2.format(Math.abs(t.netCostPmpm))} PMPM`}
           sub={`across ${inputs.coveredLives.toLocaleString()} covered lives`}
         />
         <Stat label={`Net present value (${inputs.discountRate}%)`} value={money(perView(t.npv), { signed: true })} sub={unit} />
@@ -623,8 +648,11 @@ export default function App() {
                   ))}
                 </select>
               </Field>
-              <Field id="tenure" label="Employee tenure on the plan">
+              <Field id="tenure" label="Years of active service remaining">
                 <SliderInput id="tenure" value={inputs.tenure} onChange={set('tenure')} min={1} max={30} format={(v) => `${v} yr${v > 1 ? 's' : ''}`} />
+              </Field>
+              <Field id="retireeYears" label="Years on plan as a retiree" hint="Early Retirement Incentive: up to 10">
+                <SliderInput id="retireeYears" value={inputs.retireeYears} onChange={set('retireeYears')} min={0} max={10} format={(v) => `${v} yr${v === 1 ? '' : 's'}`} />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field id="members" label="Members treated">
@@ -659,10 +687,13 @@ export default function App() {
                 </div>
               </Field>
               <div className="grid grid-cols-2 gap-3">
+                <Field id="copayMonthly" label="Member copay / mo" hint="brand formulary">
+                  <NumberInput id="copayMonthly" value={inputs.copayMonthly} onChange={set('copayMonthly')} prefix="$" step={5} />
+                </Field>
                 <Field id="monitoringCost" label="Visits &amp; labs / yr">
                   <NumberInput id="monitoringCost" value={inputs.monitoringCost} onChange={set('monitoringCost')} prefix="$" step={50} />
                 </Field>
-                <Field id="drugTrend" label="Drug price trend">
+                <Field id="drugTrend" label="Price trend">
                   <NumberInput id="drugTrend" value={inputs.drugTrend} onChange={set('drugTrend')} suffix="%/yr" step={0.5} min={-20} />
                 </Field>
               </div>
@@ -705,7 +736,7 @@ export default function App() {
               </div>
               <p className="text-[11.5px] leading-snug text-muted">
                 Untreated, a member has a {pct(res.eventRiskOverTenure)} chance of a major event (joint replacement,
-                cardiac hospitalization, bariatric surgery) over {inputs.tenure} years. Event costs are carved out of the
+                cardiac hospitalization, bariatric surgery) over {horizon} years. Event costs are carved out of the
                 excess cost above, never added twice.
               </p>
               {classEdited && (
@@ -723,7 +754,18 @@ export default function App() {
                 <Field id="sickDays" label="Sick days avoided / yr">
                   <NumberInput id="sickDays" value={inputs.sickDays} onChange={set('sickDays')} step={0.25} />
                 </Field>
+                <Field id="sickDayPayout" label="Retirement payout / banked day">
+                  <NumberInput id="sickDayPayout" value={inputs.sickDayPayout} onChange={set('sickDayPayout')} prefix="$" step={5} />
+                </Field>
+                <Field id="payoutEligible" label="Share who retire eligible">
+                  <NumberInput id="payoutEligible" value={inputs.payoutEligible} onChange={set('payoutEligible')} suffix="%" max={100} />
+                </Field>
               </div>
+              <p className="text-[11.5px] leading-snug text-muted">
+                A sick day not taken is banked and paid out at {usd0.format(inputs.sickDayPayout)} on retirement for staff with 20+ years, so each avoided
+                day saves {usd0.format(inputs.subRate - (inputs.sickDayPayout * inputs.payoutEligible) / 100)} net. The
+                substitute rate is not in the contract; confirm it with the business office.
+              </p>
             </Group>
 
             <Group title="Economics">
@@ -757,7 +799,7 @@ export default function App() {
               <div>
                 <h2 className="font-serif text-lg font-semibold text-ink">Cumulative cost vs. averted cost</h2>
                 <p className="mt-0.5 text-[13px] text-ink2">
-                  {classDefaults.short} obesity · {inputs.tenure}-year tenure · {view === 'plan' ? `${inputs.members} members starting therapy` : 'per member starting therapy'}
+                  {classDefaults.short} obesity · {horizonText(inputs)} · {view === 'plan' ? `${inputs.members} members starting therapy` : 'per member starting therapy'}
                 </p>
               </div>
               <button
@@ -776,11 +818,11 @@ export default function App() {
                 <>
                   <Legend colors={colors} />
                   <div className="mt-2">
-                    <RoiChart rows={scaledRows} breakEvenTotal={res.breakEvenTotal} breakEvenMedical={res.breakEvenMedical} colors={colors} />
+                    <RoiChart rows={scaledRows} tenure={inputs.tenure} breakEvenTotal={res.breakEvenTotal} breakEvenMedical={res.breakEvenMedical} colors={colors} />
                   </div>
                   {!res.breakEvenTotal && (
                     <p className="mt-2 text-[13px] text-ink2">
-                      <span className="font-medium text-bad">No break-even within {inputs.tenure} years.</span> Savings cover
+                      <span className="font-medium text-bad">No break-even within {horizon} years.</span> Savings cover
                       drug spend once the plan&apos;s net price falls to about {usd0.format(Math.round(res.breakEvenPrice / 10) * 10)}/yr,
                       or for more severe obesity — see the comparison below.
                     </p>
@@ -804,13 +846,31 @@ export default function App() {
           <section className="rounded-lg border border-line bg-surface p-5">
             <h2 className="font-serif text-lg font-semibold text-ink">Where coverage pays back</h2>
             <p className="mt-0.5 max-w-[75ch] text-[13px] text-ink2">
-              Same price, persistence and tenure, applied to each obesity class with its research defaults. Excess cost
+              Same price, persistence and horizon, applied to each obesity class with its research defaults. Excess cost
               rises steeply with BMI, so savings concentrate in Class II and III — the basis for a targeted coverage policy
               rather than an all-or-nothing decision.
             </p>
             <div className="mt-4">
               <ClassComparison inputs={inputs} scale={scale} />
             </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-surface p-5">
+            <h2 className="font-serif text-lg font-semibold text-ink">What the LVTEA contract changes</h2>
+            <p className="mt-0.5 max-w-[75ch] text-[13px] text-ink2">
+              Defaults reflect the 2022–2027 agreement between Lenape Technical School and the LVTEA. Page numbers refer
+              to the contract.
+            </p>
+            <dl className="mt-4 grid gap-x-8 gap-y-4 text-[13px] leading-relaxed md:grid-cols-2">
+              {CONTRACT_POINTS.map((c) => (
+                <div key={c.title}>
+                  <dt className="font-medium text-ink">
+                    {c.title} <span className="font-normal text-muted">· {c.ref}</span>
+                  </dt>
+                  <dd className="mt-0.5 text-ink2">{c.body}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
 
           <section className="grid gap-6 md:grid-cols-2">
@@ -840,8 +900,8 @@ export default function App() {
             <div className="rounded-lg border border-line bg-surface p-5">
               <h2 className="font-serif text-lg font-semibold text-ink">Not counted (upside)</h2>
               <ul className="mt-3 grid gap-2.5 text-[13px] leading-relaxed text-ink2">
-                <li>Retiree coverage years before Medicare, if the district carries pre-65 retirees.</li>
-                <li>Short- and long-term disability, workers&apos; compensation, and early retirement due to joint or cardiac disease.</li>
+                <li>The $1,000 perfect-attendance bonus (a small cost if fewer sick days are used).</li>
+                <li>Long-term disability (employee-paid under the contract), workers&apos; compensation, and early retirement due to joint or cardiac disease.</li>
                 <li>Partial benefit retained by members who stop therapy.</li>
                 <li>Presenteeism, instructional continuity, recruitment and retention.</li>
                 <li>Quality of life and mortality — the basis of cost-effectiveness (cost per QALY) reviews.</li>
