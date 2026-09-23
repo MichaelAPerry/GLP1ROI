@@ -13,8 +13,10 @@ import {
 import {
   OBESITY_CLASSES,
   SCENARIOS,
+  classForBmi,
   compareClasses,
   defaultInputs,
+  excessAtBmi,
   projectCohort,
 } from './model.js';
 import { CONTRACT_POINTS, SOURCES } from './sources.js';
@@ -76,7 +78,7 @@ function useChartColors() {
 // ---------- inputs ----------
 
 const SCENARIO_KEYS = Object.keys(SCENARIOS.base).filter((k) => k !== 'label');
-const CLASS_KEYS = ['excessCost', 'eventProb', 'eventCost', 'sickDays'];
+const CLASS_KEYS = ['bmi', 'excessCost', 'eventProb', 'eventCost', 'sickDays'];
 
 function Field({ id, label, hint, children }) {
   return (
@@ -146,6 +148,50 @@ function Group({ title, note, children }) {
       </legend>
       {children}
     </fieldset>
+  );
+}
+
+function BmiField({ bmi, onChange }) {
+  const [lb, setLb] = useState('');
+  const [inches, setInches] = useState('');
+  const fromBody = (w, h) => {
+    const W = parseFloat(w);
+    const H = parseFloat(h);
+    if (W > 0 && H > 0) onChange(Math.round(((703 * W) / (H * H)) * 10) / 10);
+  };
+  return (
+    <Field id="bmi" label="Starting BMI (before treatment)">
+      <NumberInput id="bmi" value={bmi} onChange={(v) => onChange(Math.max(25, v))} step={0.5} min={25} max={70} />
+      <div className="flex items-center gap-2 text-[11.5px] text-muted">
+        <span>or</span>
+        <input
+          id="bmiWeight"
+          aria-label="Weight in pounds"
+          inputMode="decimal"
+          placeholder="lb"
+          value={lb}
+          onChange={(e) => {
+            setLb(e.target.value);
+            fromBody(e.target.value, inches);
+          }}
+          className="num w-16 rounded border border-line bg-surface px-1.5 py-0.5 text-ink"
+        />
+        <span>at</span>
+        <input
+          id="bmiHeight"
+          aria-label="Height in inches"
+          inputMode="decimal"
+          placeholder="inches"
+          value={inches}
+          onChange={(e) => {
+            setInches(e.target.value);
+            fromBody(lb, e.target.value);
+          }}
+          className="num w-16 rounded border border-line bg-surface px-1.5 py-0.5 text-ink"
+        />
+        <span>(5′6″ = 66)</span>
+      </div>
+    </Field>
   );
 }
 
@@ -491,7 +537,23 @@ export default function App() {
     setInputs((prev) => ({
       ...prev,
       obesityClass: key,
+      bmi: c.bmi,
       excessCost: c.excessCost,
+      eventProb: c.eventProb * 100,
+      eventCost: c.eventCost,
+      sickDays: c.sickDays,
+    }));
+  };
+
+  // Editing the starting BMI re-derives the class and the excess cost from the curve.
+  const setBmi = (bmi) => {
+    const key = classForBmi(bmi);
+    const c = OBESITY_CLASSES[key];
+    setInputs((prev) => ({
+      ...prev,
+      bmi,
+      obesityClass: key,
+      excessCost: Math.round(excessAtBmi(bmi) / 100) * 100,
       eventProb: c.eventProb * 100,
       eventCost: c.eventCost,
       sickDays: c.sickDays,
@@ -648,6 +710,7 @@ export default function App() {
                   ))}
                 </select>
               </Field>
+              <BmiField bmi={inputs.bmi} onChange={setBmi} />
               <Field id="tenure" label="Years of active service remaining">
                 <SliderInput id="tenure" value={inputs.tenure} onChange={set('tenure')} min={1} max={30} format={(v) => `${v} yr${v > 1 ? 's' : ''}`} />
               </Field>
@@ -697,6 +760,19 @@ export default function App() {
                   <NumberInput id="drugTrend" value={inputs.drugTrend} onChange={set('drugTrend')} suffix="%/yr" step={0.5} min={-20} />
                 </Field>
               </div>
+              <Field id="genericYear" label="Generics arrive in year" hint="semaglutide patent ends Dec 2031">
+                <SliderInput
+                  id="genericYear"
+                  value={inputs.genericYear}
+                  onChange={set('genericYear')}
+                  min={0}
+                  max={15}
+                  format={(v) => (v === 0 ? 'Never' : `Yr ${v} · ${2026 + v - 1}`)}
+                />
+              </Field>
+              <Field id="genericPricePct" label="Price after generics" hint="% of brand price">
+                <SliderInput id="genericPricePct" value={inputs.genericPricePct} onChange={set('genericPricePct')} min={10} max={100} step={5} format={(v) => `${v}%`} />
+              </Field>
             </Group>
 
             <Group title="Treatment effect">
@@ -705,6 +781,9 @@ export default function App() {
               </Field>
               <Field id="realization" label="Excess cost that reverses" hint="causal share">
                 <SliderInput id="realization" value={inputs.realization} onChange={set('realization')} min={30} max={100} step={5} format={(v) => `${v}%`} />
+              </Field>
+              <Field id="bmiDrift" label="Weight gain if untreated" hint="BMI points per year">
+                <SliderInput id="bmiDrift" value={inputs.bmiDrift} onChange={set('bmiDrift')} min={0} max={1} step={0.05} format={(v) => `+${v.toFixed(2)}`} />
               </Field>
               <Field id="eventReduction" label="Major-event risk reduction" hint="SELECT: 20% MACE">
                 <SliderInput id="eventReduction" value={inputs.eventReduction} onChange={set('eventReduction')} min={0} max={50} format={(v) => `${v}%`} />
@@ -717,6 +796,17 @@ export default function App() {
                   <NumberInput id="persistAnnual" value={inputs.persistAnnual} onChange={set('persistAnnual')} suffix="%" max={100} />
                 </Field>
               </div>
+              <button
+                type="button"
+                onClick={() => setInputs((prev) => ({ ...prev, persistY1: 100, persistAnnual: 100, scenario: 'custom' }))}
+                className={`justify-self-start rounded-full border px-2.5 py-0.5 text-[11.5px] ${
+                  inputs.persistY1 === 100 && inputs.persistAnnual === 100
+                    ? 'border-accent text-accent'
+                    : 'border-line text-muted hover:text-ink'
+                }`}
+              >
+                Model a member who stays on therapy
+              </button>
             </Group>
 
             <Group
@@ -844,6 +934,28 @@ export default function App() {
           </section>
 
           <section className="rounded-lg border border-line bg-surface p-5">
+            <h2 className="font-serif text-lg font-semibold text-ink">Does coverage have to pay for itself?</h2>
+            <div className="mt-2 grid max-w-[75ch] gap-2.5 text-[13.5px] leading-relaxed text-ink2">
+              <p>
+                This calculator asks the strictest question: do averted dollars exceed drug dollars inside this plan? Almost
+                no covered treatment meets that bar. Insulin, chemotherapy, cardiac stents and joint replacements are covered
+                because they buy health, not because they pay for themselves.
+              </p>
+              <p>
+                By the standard health plans usually apply — health gained per dollar — GLP-1s qualify. ICER&apos;s December 2025
+                review found semaglutide and tirzepatide cost about $53,000–$69,000 per quality-adjusted life year, and the
+                current net price (≈$6,830) is <b className="font-medium text-ink">below</b> ICER&apos;s fair-value
+                benchmark of $9,100–$12,500 a year for injectable semaglutide.
+              </p>
+              <p>
+                The cash case is weakest in the first years, when members who stop early and full brand prices dominate.
+                It strengthens for members who stay on therapy, for higher starting BMI, for longer time on the plan, and
+                once generics arrive after the semaglutide patent ends in December 2031.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-surface p-5">
             <h2 className="font-serif text-lg font-semibold text-ink">Where coverage pays back</h2>
             <p className="mt-0.5 max-w-[75ch] text-[13px] text-ink2">
               Same price, persistence and horizon, applied to each obesity class with its research defaults. Excess cost
@@ -888,8 +1000,15 @@ export default function App() {
                 </li>
                 <li>
                   <b className="font-medium text-ink">Averted medical cost</b> comes from moving down the BMI cost curve:
-                  a {inputs.weightLoss}% loss removes {pct(res.avertedShare)} of this class&apos;s excess cost after the
-                  {` ${inputs.realization}%`} causal-share discount.
+                  a {inputs.weightLoss}% loss from BMI {inputs.bmi} removes {pct(res.avertedShare)} of the excess cost
+                  after the {inputs.realization}% causal-share discount. Without treatment, weight keeps climbing
+                  {` ${inputs.bmiDrift}`} BMI points a year, so the gap widens over time.
+                </li>
+                <li>
+                  <b className="font-medium text-ink">Drug price</b> trends {inputs.drugTrend}%/yr
+                  {inputs.genericYear > 0
+                    ? `, then drops to ${inputs.genericPricePct}% of brand in year ${inputs.genericYear} as generics arrive.`
+                    : ' and never faces generic competition.'}
                 </li>
                 <li>
                   <b className="font-medium text-ink">Substitute savings</b> accrue to the district&apos;s operating
@@ -903,6 +1022,10 @@ export default function App() {
                 <li>The $1,000 perfect-attendance bonus (a small cost if fewer sick days are used).</li>
                 <li>Long-term disability (employee-paid under the contract), workers&apos; compensation, and early retirement due to joint or cardiac disease.</li>
                 <li>Partial benefit retained by members who stop therapy.</li>
+                <li>
+                  Type 2 diabetes prevention beyond the average in the cost curve: tirzepatide cut progression from
+                  prediabetes by 94% over three years, and diabetes adds about $12,000 a year in medical cost for life.
+                </li>
                 <li>Presenteeism, instructional continuity, recruitment and retention.</li>
                 <li>Quality of life and mortality — the basis of cost-effectiveness (cost per QALY) reviews.</li>
               </ul>

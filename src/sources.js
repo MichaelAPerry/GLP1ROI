@@ -59,6 +59,32 @@ export const SOURCES = [
     url: 'https://phti.org/wp-content/uploads/sites/3/2025/12/PHTI-Employer-Approaches-to-GLP-1-Coverage-Market-Trend-Report.pdf',
   },
   {
+    use: 'Value for money',
+    finding:
+      'ICER final report (Dec 2025): $53,400–$69,300 per QALY; net price $6,829 vs. health-benefit price benchmark $9,100–$12,500 for injectable semaglutide.',
+    name: 'ICER, Dec 2025',
+    url: 'https://icer.org/pressreleases/institute-for-clinical-and-economic-review-publishes-final-evidence-report-on-treatments-for-obesity/',
+  },
+  {
+    use: 'Generic timing',
+    finding:
+      'US semaglutide compound patent expires Dec 5, 2031; Canadian generics launched in 2026 at roughly 40–60% below brand.',
+    name: 'Drug Discovery Trends',
+    url: 'https://www.drugdiscoverytrends.com/canada-approves-generic-semaglutide-from-dr-reddys-a-g7-first-enabled-by-novo-nordisks-lapsed-cad250-patent/',
+  },
+  {
+    use: 'Diabetes prevention',
+    finding: 'Tirzepatide: 94% lower risk of progressing from prediabetes to type 2 diabetes over 176 weeks.',
+    name: 'SURMOUNT-1, NEJM 2024',
+    url: 'https://www.nejm.org/doi/abs/10.1056/NEJMoa2410819',
+  },
+  {
+    use: 'Diabetes cost',
+    finding: 'People with diabetes average $19,736 a year in medical costs, about $12,022 of it attributable to diabetes.',
+    name: 'ADA, Diabetes Care 2024',
+    url: 'https://diabetesjournals.org/care/article/47/1/26/153797/Economic-Costs-of-Diabetes-in-the-U-S-in-2022',
+  },
+  {
     use: 'Joint replacement',
     finding: 'Class III obesity: 2.67× hazard of knee replacement vs. normal weight.',
     name: 'Prospective cohort, PMC',

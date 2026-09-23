@@ -11,12 +11,12 @@ test('excess-cost curve hits the class anchors', () => {
 });
 
 test('averted share grows with weight loss and realization', () => {
-  assert.ok(avertedShareFor('II', 18, 70) > avertedShareFor('II', 10, 70));
-  close(avertedShareFor('II', 14, 50) * 2, avertedShareFor('II', 14, 100));
+  assert.ok(avertedShareFor(37.5, 18, 70) > avertedShareFor(37.5, 10, 70));
+  close(avertedShareFor(37.5, 14, 50) * 2, avertedShareFor(37.5, 14, 100));
 });
 
 test('full persistence, one year: hand-checked arithmetic', () => {
-  const inp = { ...defaultInputs('II'), members: 1, tenure: 1, persistY1: 100 };
+  const inp = { ...defaultInputs('II'), members: 1, tenure: 1, persistY1: 100, genericYear: 0 };
   const r = projectCohort(inp).rows[0];
   close(r.drug, inp.drugCost - inp.copayMonthly * 12 + inp.monitoringCost);
   close(r.subs, 0.15 * inp.sickDays * (inp.subRate - inp.sickDayPayout * 0.5));
@@ -45,4 +45,16 @@ test('retiree years extend drug and medical lines but not substitute savings', (
   const res = projectCohort(inp);
   assert.equal(res.rows.length, 10);
   assert.ok(res.rows.slice(5).every((r) => r.subs === 0 && r.medical > 0 && r.drug > 0));
+});
+
+test('generic entry lowers drug spend from that year on', () => {
+  const inp = { ...defaultInputs('II'), persistY1: 100, persistAnnual: 100, drugTrend: 0, genericYear: 3, genericPricePct: 40 };
+  const r = projectCohort(inp).rows;
+  close(r[2].drugUnits, 0.4 * r[1].drugUnits);
+});
+
+test('weight drift without treatment raises averted cost over time', () => {
+  const base = { ...defaultInputs('II'), bmiDrift: 0 };
+  const drift = { ...base, bmiDrift: 0.3 };
+  assert.ok(projectCohort(drift).totals.medical > projectCohort(base).totals.medical);
 });

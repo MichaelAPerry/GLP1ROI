@@ -22,6 +22,7 @@ npm test         # unit tests for the actuarial model
 | `src/App.jsx` | The dashboard (React, Tailwind, Recharts). |
 | `src/sources.js` | Citations shown on the page for every default value. |
 | `src/model.test.js` | Hand-checked tests of the model. |
+| `glp1-coverage-roi.html` | Built single-file page, ready to upload to any static site. |
 
 ## Model in brief
 
@@ -34,6 +35,10 @@ npm test         # unit tests for the actuarial model
 - **Major events** (joint replacement, cardiac hospitalization, bariatric surgery) are an
   expected-value slice *of* the excess cost, reduced by the event-risk-reduction input, so
   nothing is counted twice.
+- **Untreated weight gain**: without treatment BMI drifts up each year (default +0.2), so the
+  averted cost grows over time. Starting BMI can be entered directly or from height and weight.
+- **Generics**: the drug price steps down to a set share of brand in a chosen year (base case:
+  40% in year 7, after the US semaglutide patent ends in December 2031).
 - **Substitute savings** = sick days avoided × daily sub rate. These hit the district's
   operating budget, not the plan, and are reported separately.
 - **Break-even net price** = the year-1 net annual drug price at which total savings equal

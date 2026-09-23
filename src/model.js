@@ -65,11 +65,12 @@ export function excessAtBmi(bmi) {
 // Share of a class's excess medical cost averted by sustained weight loss.
 // `realization` discounts the cross-sectional cost gap for damage weight loss
 // can't undo (existing joint wear, established disease) and for selection bias.
-export function avertedShareFor(obesityClass, weightLossPct, realizationPct) {
-  const bmi = OBESITY_CLASSES[obesityClass].bmi;
+export function avertedShareFor(bmi, weightLossPct, realizationPct, untreatedBmi = bmi) {
   const after = excessAtBmi(bmi * (1 - weightLossPct / 100));
-  return (1 - after / excessAtBmi(bmi)) * (realizationPct / 100);
+  return (1 - after / excessAtBmi(untreatedBmi)) * (realizationPct / 100);
 }
+
+export const classForBmi = (bmi) => (bmi >= 40 ? 'III' : bmi >= 35 ? 'II' : 'I');
 
 // Share of the full benefit realized in each year on therapy. Weight loss plateaus
 // around months 12–18, and claims studies (e.g. Aon 2025–26) show medical cost
@@ -85,6 +86,9 @@ export const SCENARIOS = {
     eventReduction: 15,
     persistY1: 40,
     persistAnnual: 75,
+    bmiDrift: 0,
+    genericYear: 0,
+    genericPricePct: 100,
     drugTrend: 0,
     medicalTrend: 5,
   },
@@ -95,6 +99,9 @@ export const SCENARIOS = {
     eventReduction: 20,
     persistY1: 50,
     persistAnnual: 80,
+    bmiDrift: 0.2,
+    genericYear: 7,
+    genericPricePct: 40,
     drugTrend: -2,
     medicalTrend: 6,
   },
@@ -105,6 +112,9 @@ export const SCENARIOS = {
     eventReduction: 25,
     persistY1: 65,
     persistAnnual: 85,
+    bmiDrift: 0.3,
+    genericYear: 6,
+    genericPricePct: 25,
     drugTrend: -5,
     medicalTrend: 7,
   },
@@ -115,6 +125,7 @@ export function defaultInputs(obesityClass = 'II', scenario = 'base') {
   return {
     obesityClass,
     scenario,
+    bmi: c.bmi,
     // Sized for Lenape Technical School: ~71 staff (NCES), roughly 160 covered lives
     // with dependents, and a handful of members on therapy.
     members: 5,
@@ -157,7 +168,8 @@ function stripLabel({ label, ...rest }) {
 export function projectCohort(inp) {
   const N = inp.members;
   const pct = (v) => v / 100;
-  const avertedShare = avertedShareFor(inp.obesityClass, inp.weightLoss, inp.realization);
+  const bmi0 = inp.bmi ?? OBESITY_CLASSES[inp.obesityClass].bmi;
+  const avertedShare = avertedShareFor(bmi0, inp.weightLoss, inp.realization);
   const rows = [];
   let prevOn = 1;
   let cumDrug = 0;
@@ -174,18 +186,26 @@ export function projectCohort(inp) {
     const ramp = rampFor(t);
 
     const medF = (1 + pct(inp.medicalTrend)) ** (t - 1);
-    const drugF = (1 + pct(inp.drugTrend)) ** (t - 1);
+    // Price follows its trend, then steps down once generics reach the market
+    // (US semaglutide compound patent expires Dec 2031).
+    const genericF = inp.genericYear > 0 && t >= inp.genericYear ? pct(inp.genericPricePct) : 1;
+    const drugF = (1 + pct(inp.drugTrend)) ** (t - 1) * genericF;
     const wageF = (1 + pct(inp.wageTrend)) ** (t - 1);
 
+    // Untreated, weight keeps drifting up with age, so the excess cost being averted
+    // grows; a member on therapy holds the lower weight.
+    const untreatedBmi = bmi0 + (inp.bmiDrift || 0) * (t - 1);
+    const progression = excessAtBmi(untreatedBmi) / excessAtBmi(bmi0);
+    const shareT = avertedShareFor(bmi0, inp.weightLoss, inp.realization, untreatedBmi);
     const eventExpected = pct(inp.eventProb) * inp.eventCost * medF;
-    const routineExcess = Math.max(0, inp.excessCost * medF - eventExpected);
+    const routineExcess = Math.max(0, inp.excessCost * medF * progression - eventExpected);
 
     const drugPrice = inp.drugCost * drugF;
     // Plan pays the net price less the member's brand copay.
     const planDrugPrice = Math.max(0, drugPrice - inp.copayMonthly * 12);
     const drug = N * avgOn * (planDrugPrice + inp.monitoringCost * medF);
     const benefitShare = N * onEnd * ramp;
-    const avertedRoutine = benefitShare * routineExcess * avertedShare;
+    const avertedRoutine = benefitShare * routineExcess * shareT;
     const avertedEvents = benefitShare * eventExpected * pct(inp.eventReduction);
     const medical = avertedRoutine + avertedEvents;
     // A sick day not taken is banked; members who retire eligible are paid for it
@@ -277,6 +297,7 @@ export function compareClasses(inp) {
     const result = projectCohort({
       ...inp,
       obesityClass: key,
+      bmi: c.bmi,
       excessCost: c.excessCost,
       eventProb: c.eventProb * 100,
       eventCost: c.eventCost,
