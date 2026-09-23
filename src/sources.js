@@ -77,7 +77,7 @@ export const CONTRACT_POINTS = [
   {
     title: 'Members already share the drug cost',
     ref: 'App. D.1, p. 36',
-    body: 'Brand formulary drugs carry a $35 copay per 30-day supply ($50 non-formulary), about $420 a year that the plan does not pay.',
+    body: 'Brand drugs carry a $35 (formulary) or $50 (non-formulary) copay per 30-day supply. Members on a GLP-1 report paying $50 a month, so $600 a year that the plan does not pay.',
   },
   {
     title: 'Retiree health extends the payback window',

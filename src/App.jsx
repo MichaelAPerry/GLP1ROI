@@ -687,7 +687,7 @@ export default function App() {
                 </div>
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field id="copayMonthly" label="Member copay / mo" hint="brand formulary">
+                <Field id="copayMonthly" label="Member copay / mo" hint="$50 non-formulary">
                   <NumberInput id="copayMonthly" value={inputs.copayMonthly} onChange={set('copayMonthly')} prefix="$" step={5} />
                 </Field>
                 <Field id="monitoringCost" label="Visits &amp; labs / yr">

@@ -122,7 +122,7 @@ export function defaultInputs(obesityClass = 'II', scenario = 'base') {
     tenure: 10,
     retireeYears: 0,
     drugCost: 6800,
-    copayMonthly: 35,
+    copayMonthly: 50,
     monitoringCost: 300,
     subRate: 120,
     sickDayPayout: 135,
